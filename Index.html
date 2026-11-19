@@ -1,0 +1,2094 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Presensi QR Guru - MI Abu Bakar Ash-Shiddiq</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans & Amiri untuk sentuhan Islami -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Library html5-qrcode untuk Scanner Kamera -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    
+    <!-- Library qrcodejs untuk Generator QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        arabic: ['"Amiri"', 'serif'],
+                    },
+                    colors: {
+                        emerald: {
+                            850: '#064e3b',
+                            950: '#022c22',
+                        },
+                        gold: {
+                            400: '#fbbf24',
+                            500: '#d97706',
+                            600: '#b45309',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Pola geometris Islami halus untuk latar header */
+        .islamic-pattern {
+            background-color: #064e3b;
+            background-image: radial-gradient(rgba(251, 191, 36, 0.14) 1.5px, transparent 1.5px), 
+                              radial-gradient(rgba(251, 191, 36, 0.08) 1.5px, #064e3b 1.5px);
+            background-size: 32px 32px;
+            background-position: 0 0, 16px 16px;
+        }
+
+        /* Animasi halus untuk notifikasi hasil scan */
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(12px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-scan-result {
+            animation: slideUpFade 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Styling khusus area kamera html5-qrcode */
+        #reader {
+            border: none !important;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        #reader video {
+            border-radius: 1rem;
+            object-fit: cover;
+        }
+        #reader__dashboard_section_csr span,
+        #reader__dashboard_section_swaplink {
+            display: none !important;
+        }
+
+        /* Pengaturan Cetak (Print) agar hanya Kartu ID yang tercetak rapi */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-id-card-wrapper,
+            #printable-id-card-wrapper * {
+                visibility: visible;
+            }
+            #printable-id-card-wrapper {
+                position: fixed;
+                left: 50%;
+                top: 20px;
+                transform: translateX(-50%);
+                margin: 0;
+                padding: 0;
+                box-shadow: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col selection:bg-emerald-700 selection:text-white">
+
+    <!-- ==================== HEADER & IDENTITAS MADRASAH ==================== -->
+    <header class="islamic-pattern text-white shadow-lg border-b-4 border-amber-400">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                
+                <!-- Logo & Nama Sekolah -->
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-amber-300 via-amber-400 to-amber-600 p-0.5 shadow-md flex-shrink-0">
+                        <div class="w-full h-full bg-emerald-950 rounded-[14px] flex flex-col items-center justify-center text-amber-400">
+                            <i class="fa-solid fa-mosque text-xl sm:text-2xl"></i>
+                            <span class="text-[9px] font-bold tracking-widest mt-0.5">MI-ABAS</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 rounded-full">
+                                Madrasah Ibtidaiyah
+                            </span>
+                        </div>
+                        <h1 class="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white mt-1">
+                            MI ABU BAKAR ASH-SHIDDIQ
+                        </h1>
+                        <p class="text-xs sm:text-sm text-emerald-100/90 font-medium">
+                            Sistem Presensi Digital Berbasis QR Code — Guru & Tenaga Kependidikan
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Widget Waktu Real-time & Pengaturan Cepat -->
+                <div class="flex flex-wrap sm:flex-nowrap items-center gap-3 bg-emerald-950/60 backdrop-blur-sm border border-emerald-700/60 p-3 rounded-2xl">
+                    <!-- Jam & Tanggal WIB -->
+                    <div class="px-3 py-1 border-r border-emerald-700/60">
+                        <div id="live-clock" class="text-xl sm:text-2xl font-extrabold text-amber-400 tabular-nums tracking-tight">
+                            00:00:00 WIB
+                        </div>
+                        <div id="live-date" class="text-xs text-emerald-100 font-medium">
+                            Memuat tanggal...
+                        </div>
+                    </div>
+
+                    <!-- Pengaturan Jam Batas Masuk -->
+                    <div class="px-2">
+                        <label for="batas-jam-masuk" class="block text-[11px] uppercase tracking-wider text-emerald-200 font-semibold mb-1">
+                            Batas Jam Masuk
+                        </label>
+                        <div class="flex items-center gap-1.5">
+                            <input type="time" id="batas-jam-masuk" value="07:15" 
+                                class="bg-emerald-900 text-white text-sm font-bold px-2.5 py-1.5 rounded-xl border border-emerald-600 focus:outline-none focus:ring-2 focus:ring-amber-400">
+                        </div>
+                    </div>
+
+                    <!-- Status Koneksi Google Sheets & Tombol Sinkronkan -->
+                    <div class="px-2 border-l border-emerald-700/60 flex flex-col justify-center">
+                        <div class="flex items-center gap-1.5 mb-1">
+                            <span id="sheets-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                            <span id="sheets-status-text" class="text-[11px] font-bold uppercase tracking-wider text-emerald-100">
+                                Mode Lokal
+                            </span>
+                            <span id="pending-queue-badge" class="hidden px-1.5 py-0.5 text-[10px] font-extrabold rounded-md bg-amber-400 text-emerald-950">
+                                0 antrean
+                            </span>
+                        </div>
+                        <button type="button" onclick="syncFromGoogleSheets(true)" id="btn-sync-sheets"
+                            class="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-emerald-950 text-xs font-extrabold rounded-lg shadow-xs transition flex items-center gap-1.5 w-fit">
+                            <i id="icon-sync-sheets" class="fa-solid fa-rotate"></i>
+                            <span>Sinkronkan Sekarang</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== NAVIGASI 3 TAB UTAMA ==================== -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex overflow-x-auto no-scrollbar py-2.5 gap-2 sm:gap-3" role="tablist">
+                <button onclick="switchTab('scanner')" id="tab-btn-scanner"
+                    class="tab-btn flex items-center gap-2.5 px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap bg-emerald-700 text-white shadow-sm">
+                    <i class="fa-solid fa-qrcode text-base"></i>
+                    <span>1. Scanner Presensi</span>
+                </button>
+                
+                <button onclick="switchTab('guru')" id="tab-btn-guru"
+                    class="tab-btn flex items-center gap-2.5 px-4 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all whitespace-nowrap text-slate-600 hover:bg-emerald-50 hover:text-emerald-800">
+                    <i class="fa-solid fa-id-card text-base"></i>
+                    <span>2. Data Guru & Kartu QR</span>
+                    <span id="badge-total-guru" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700 font-bold">0</span>
+                </button>
+
+                <button onclick="switchTab('rekap')" id="tab-btn-rekap"
+                    class="tab-btn flex items-center gap-2.5 px-4 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all whitespace-nowrap text-slate-600 hover:bg-emerald-50 hover:text-emerald-800">
+                    <i class="fa-solid fa-file-excel text-base"></i>
+                    <span>3. Rekap & Laporan</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ==================== KONTEN UTAMA ==================== -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+        <!-- ============================================================ -->
+        <!-- TAB 1: SCANNER PRESENSI (PEMINDAI QR)                        -->
+        <!-- ============================================================ -->
+        <section id="view-scanner" class="space-y-6">
+            
+            <!-- Bar Kontrol Mode Presensi (Masuk / Pulang) -->
+            <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Mode Pemindaian Presensi Aktif
+                    </h2>
+                    <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+                        Pilih jenis presensi sebelum mengarahkan Kartu QR Guru ke kamera.
+                    </p>
+                </div>
+
+                <!-- Toggle Mode Absen Masuk / Absen Pulang -->
+                <div class="grid grid-cols-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200 w-full sm:w-auto">
+                    <button type="button" onclick="setModePresensi('MASUK')" id="btn-mode-masuk"
+                        class="px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all bg-emerald-700 text-white shadow-sm">
+                        <i class="fa-solid fa-right-to-bracket"></i>
+                        <span>Absen Masuk</span>
+                    </button>
+                    <button type="button" onclick="setModePresensi('PULANG')" id="btn-mode-pulang"
+                        class="px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all text-slate-600 hover:text-slate-900">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        <span>Absen Pulang</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- Kolom Kiri (7 Kolom): Kamera Scanner & Input Simulasi -->
+                <div class="lg:col-span-7 space-y-6">
+                    <!-- Kartu Area Kamera -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                        <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                                    <i class="fa-solid fa-camera"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800 text-sm sm:text-base">Pemindai Kamera QR</h3>
+                                    <p id="camera-status-text" class="text-xs text-slate-500">Kamera belum diaktifkan</p>
+                                </div>
+                            </div>
+
+                            <!-- Kontrol Kamera -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <select id="camera-select" class="hidden text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 max-w-[180px]">
+                                </select>
+                                <button onclick="startScanner()" id="btn-start-cam"
+                                    class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm transition flex items-center gap-2">
+                                    <i class="fa-solid fa-play"></i>
+                                    <span>Mulai Kamera</span>
+                                </button>
+                                <button onclick="stopScanner()" id="btn-stop-cam"
+                                    class="hidden px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm transition flex items-center gap-2">
+                                    <i class="fa-solid fa-stop"></i>
+                                    <span>Hentikan</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Viewport Kamera -->
+                        <div class="p-4 sm:p-6 bg-slate-900 flex flex-col items-center justify-center min-h-[300px] sm:min-h-[340px] relative">
+                            <div id="reader" class="w-full max-w-md mx-auto"></div>
+                            
+                            <!-- Placeholder saat kamera mati -->
+                            <div id="camera-placeholder" class="text-center text-slate-300 py-8 px-4 max-w-sm">
+                                <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto mb-4 text-amber-400">
+                                    <i class="fa-solid fa-qrcode text-3xl"></i>
+                                </div>
+                                <h4 class="font-bold text-white text-base mb-1">Siap Memindai Kartu Guru</h4>
+                                <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                                    Klik tombol <strong class="text-emerald-400">Mulai Kamera</strong> di atas untuk mengaktifkan webcam laptop atau kamera HP, lalu arahkan QR Code pada Kartu ID Guru.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fallback Input Manual / Simulasi Uji Coba -->
+                    <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-amber-200/80 bg-gradient-to-br from-white to-amber-50/40">
+                        <div class="flex items-start gap-3 mb-3">
+                            <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <i class="fa-solid fa-keyboard"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-800 text-sm">Presensi Manual / Simulasi Uji Coba</h4>
+                                <p class="text-xs text-slate-500">
+                                    Gunakan fitur ini jika kamera tidak tersedia atau untuk simulasi pemindaian cepat.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                            <div class="sm:col-span-5">
+                                <select id="simulasi-select-guru" onchange="document.getElementById('manual-nip-input').value = this.value"
+                                    class="w-full text-sm bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                                    <option value="">-- Pilih Guru Cepat --</option>
+                                </select>
+                            </div>
+                            <div class="sm:col-span-4">
+                                <input type="text" id="manual-nip-input" placeholder="Ketik NIP / ID Guru..."
+                                    onkeydown="if(event.key==='Enter') handleManualScan()"
+                                    class="w-full text-sm bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                            </div>
+                            <div class="sm:col-span-3">
+                                <button onclick="handleManualScan()"
+                                    class="w-full h-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-emerald-950 font-bold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-check-circle"></i>
+                                    <span>Catat</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kolom Kanan (5 Kolom): Hasil Scan Terbaru & Riwayat 5 Aktivitas -->
+                <div class="lg:col-span-5 space-y-6">
+                    
+                    <!-- Kartu Umpan Balik Hasil Scan -->
+                    <div id="scan-feedback-container" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Status Pemindaian Terakhir</span>
+                            <span id="feedback-mode-badge" class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800">
+                                Mode: Absen Masuk
+                            </span>
+                        </div>
+
+                        <!-- Area Dinamis Hasil Scan -->
+                        <div id="scan-result-box" class="rounded-xl border-2 border-dashed border-slate-200 p-6 text-center bg-slate-50/70">
+                            <i class="fa-regular fa-id-badge text-3xl text-slate-300 mb-2"></i>
+                            <p class="text-sm font-semibold text-slate-500">Menunggu pemindaian kartu...</p>
+                            <p class="text-xs text-slate-400 mt-1">Detail nama guru dan ketepatan waktu akan muncul di sini.</p>
+                        </div>
+                    </div>
+
+                    <!-- Daftar 5 Aktivitas Absensi Terbaru Hari Ini -->
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2">
+                                <i class="fa-solid fa-clock-rotate-left text-emerald-700"></i>
+                                <span>5 Aktivitas Presensi Terbaru</span>
+                            </h3>
+                            <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">Hari Ini</span>
+                        </div>
+
+                        <div id="recent-scans-list" class="space-y-3">
+                            <!-- Diisi melalui JavaScript -->
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- TAB 2: DATA GURU & CETAK KARTU QR                            -->
+        <!-- ============================================================ -->
+        <section id="view-guru" class="hidden space-y-6">
+            
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- Form Tambah Data Guru (4 Kolom) -->
+                <div class="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+                    <div class="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-sm">
+                            <i class="fa-solid fa-user-plus"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-base">Tambah Guru / Staf</h2>
+                            <p class="text-xs text-slate-500">QR Code dibuat otomatis setelah disimpan</p>
+                        </div>
+                    </div>
+
+                    <form id="form-tambah-guru" onsubmit="handleTambahGuru(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                                NIP / ID Pegawai <span class="text-rose-500">*</span>
+                            </label>
+                            <input type="text" id="input-nip" required placeholder="Contoh: GR-202606"
+                                class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-medium">
+                            <p class="text-[11px] text-slate-400 mt-1">Kode unik ini akan tertanam di dalam QR Code.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                                Nama Lengkap & Gelar <span class="text-rose-500">*</span>
+                            </label>
+                            <input type="text" id="input-nama" required placeholder="Contoh: Ust. Ahmad Fauzi, S.Pd.I"
+                                class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-medium">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                                Jabatan / Mata Pelajaran <span class="text-rose-500">*</span>
+                            </label>
+                            <input type="text" id="input-jabatan" required placeholder="Contoh: Wali Kelas 3A / Guru PAI"
+                                class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 font-medium">
+                        </div>
+
+                        <button type="submit"
+                            class="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2 mt-2">
+                            <i class="fa-solid fa-plus-circle"></i>
+                            <span>Simpan & Buat QR Code</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Daftar Guru & Kartu QR (8 Kolom) -->
+                <div class="lg:col-span-8 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-base sm:text-lg">Daftar Guru & Tenaga Kependidikan</h2>
+                            <p class="text-xs text-slate-500">Klik tombol <strong>Lihat & Cetak Kartu ID</strong> untuk mencetak kartu presensi resmi.</p>
+                        </div>
+                        <div class="relative">
+                            <i class="fa-solid fa-search text-slate-400 text-xs absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="search-guru" onkeyup="renderTabelGuru()" placeholder="Cari nama atau NIP..."
+                                class="pl-9 pr-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 w-full sm:w-56">
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
+                                    <th class="py-3 px-3 rounded-tl-xl">QR Code</th>
+                                    <th class="py-3 px-3">Identitas Guru / Staf</th>
+                                    <th class="py-3 px-3">Jabatan / Mapel</th>
+                                    <th class="py-3 px-3 text-right rounded-tr-xl">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-guru" class="divide-y divide-slate-100 text-sm">
+                                <!-- Diisi melalui JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- TAB 3: REKAP & LAPORAN KEHADIRAN                             -->
+        <!-- ============================================================ -->
+        <section id="view-rekap" class="hidden space-y-6">
+            
+            <!-- Ringkasan Statistik Hari Ini -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-xs font-semibold">Total Guru/Staf</span>
+                        <i class="fa-solid fa-users text-emerald-700"></i>
+                    </div>
+                    <div id="stat-total-guru" class="text-2xl font-extrabold text-slate-800">0</div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-emerald-200 shadow-sm bg-emerald-50/30">
+                    <div class="flex items-center justify-between text-emerald-700 mb-1">
+                        <span class="text-xs font-semibold">Tepat Waktu</span>
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div id="stat-tepat-waktu" class="text-2xl font-extrabold text-emerald-700">0</div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-amber-200 shadow-sm bg-amber-50/30">
+                    <div class="flex items-center justify-between text-amber-700 mb-1">
+                        <span class="text-xs font-semibold">Terlambat</span>
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                    <div id="stat-terlambat" class="text-2xl font-extrabold text-amber-600">0</div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-sky-200 shadow-sm bg-sky-50/30">
+                    <div class="flex items-center justify-between text-sky-700 mb-1">
+                        <span class="text-xs font-semibold">Sudah Pulang</span>
+                        <i class="fa-solid fa-house-circle-check"></i>
+                    </div>
+                    <div id="stat-pulang" class="text-2xl font-extrabold text-sky-700">0</div>
+                </div>
+
+                <div class="col-span-2 sm:col-span-1 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <div class="flex items-center justify-between text-slate-500 mb-1">
+                        <span class="text-xs font-semibold">Belum Hadir</span>
+                        <i class="fa-solid fa-user-clock text-rose-500"></i>
+                    </div>
+                    <div id="stat-belum-hadir" class="text-2xl font-extrabold text-rose-600">0</div>
+                </div>
+            </div>
+
+            <!-- Panel Filter & Ekspor Laporan -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 space-y-5">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div>
+                        <h2 class="font-bold text-slate-800 text-base sm:text-lg">Rekapitulasi Presensi Guru & Staf</h2>
+                        <p class="text-xs text-slate-500">Filter berdasarkan tanggal atau status, lalu ekspor ke file Excel (.CSV).</p>
+                    </div>
+
+                    <!-- Kontrol Filter & Tombol Aksi -->
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <div>
+                            <input type="date" id="filter-tanggal" onchange="renderTabelRekap()"
+                                class="px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                        </div>
+                        <div>
+                            <select id="filter-status" onchange="renderTabelRekap()"
+                                class="px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                                <option value="SEMUA">Semua Status</option>
+                                <option value="Tepat Waktu">Tepat Waktu</option>
+                                <option value="Terlambat">Terlambat</option>
+                                <option value="Sudah Pulang">Sudah Pulang</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="filter-jenis" onchange="renderTabelRekap()"
+                                class="px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                                <option value="SEMUA">Semua Jenis</option>
+                                <option value="MASUK">Absen Masuk</option>
+                                <option value="PULANG">Absen Pulang</option>
+                            </select>
+                        </div>
+                        <button onclick="exportToCSV()"
+                            class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm transition flex items-center gap-2">
+                            <i class="fa-solid fa-file-csv"></i>
+                            <span>Ekspor ke Excel (.CSV)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabel Rekap -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50">
+                                <th class="py-3 px-3 rounded-tl-xl">No</th>
+                                <th class="py-3 px-3">Tanggal</th>
+                                <th class="py-3 px-3">NIP / ID</th>
+                                <th class="py-3 px-3">Nama Guru / Staf</th>
+                                <th class="py-3 px-3">Jabatan</th>
+                                <th class="py-3 px-3">Jam Masuk</th>
+                                <th class="py-3 px-3">Status Masuk</th>
+                                <th class="py-3 px-3">Jam Pulang</th>
+                                <th class="py-3 px-3 text-right rounded-tr-xl">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-rekap" class="divide-y divide-slate-100 text-sm">
+                            <!-- Diisi melalui JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pengaturan URL Google Apps Script Web App -->
+                <div class="pt-4 border-t border-slate-100 bg-emerald-50/50 rounded-2xl p-4 border border-emerald-200/60">
+                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-3">
+                        <div class="flex-grow">
+                            <label for="input-webapp-url" class="block text-xs font-extrabold uppercase tracking-wider text-emerald-900 mb-1">
+                                <i class="fa-solid fa-link mr-1 text-emerald-700"></i> URL Google Apps Script Web App (Database Sheets)
+                            </label>
+                            <input type="url" id="input-webapp-url"
+                                placeholder="https://script.google.com/macros/s/.../exec"
+                                class="w-full px-3.5 py-2 text-xs font-mono bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                            <p id="last-sync-info" class="text-[11px] text-slate-500 mt-1">
+                                Belum tersinkronisasi dengan Google Sheets pada sesi ini.
+                            </p>
+                            <p class="text-[11px] text-emerald-900/80 bg-white/80 border border-emerald-200/80 rounded-lg px-3 py-2 mt-2 leading-relaxed">
+                                <i class="fa-solid fa-circle-info mr-1 text-emerald-700"></i>
+                                <strong>Info Hosting Web:</strong> Kode aplikasi ini siap ditempelkan langsung ke file HTML bernama <code class="font-mono font-bold">Index</code> (<code>Index.html</code>) di proyek Google Apps Script untuk dibuka via tautan <code class="font-mono">https://script.google.com/macros/s/.../exec</code>, atau diunggah ke tautan web statis (<code class="font-mono">https://</code>) agar akses kamera berjalan mulus.
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <button type="button" onclick="saveWebAppUrl()"
+                                class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-floppy-disk"></i>
+                                <span>Simpan & Hubungkan</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bar Backup & Manajemen Data -->
+                <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <span class="text-slate-400">
+                        <i class="fa-solid fa-database mr-1"></i> Data tersimpan otomatis di penyimpanan lokal browser (LocalStorage).
+                    </span>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="exportBackupJSON()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition">
+                            <i class="fa-solid fa-download mr-1"></i> Cadangkan JSON
+                        </button>
+                        <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition cursor-pointer">
+                            <i class="fa-solid fa-upload mr-1"></i> Pulihkan JSON
+                            <input type="file" accept=".json" onchange="importBackupJSON(event)" class="hidden">
+                        </label>
+                        <button onclick="confirmResetDemo()" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-lg transition">
+                            <i class="fa-solid fa-rotate-left mr-1"></i> Reset Data Demo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==================== FOOTER ==================== -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+            <p class="font-semibold text-slate-600">
+                &copy; <span id="footer-year"></span> MI Abu Bakar Ash-Shiddiq — Sistem Presensi Digital Guru & Staf
+            </p>
+            <p>Membangun Kedisiplinan & Amanah Pendidikan Islam</p>
+        </div>
+    </footer>
+
+    <!-- ============================================================ -->
+    <!-- MODAL CETAK KARTU ID GURU                                    -->
+    <!-- ============================================================ -->
+    <div id="modal-kartu-id" class="fixed inset-0 z-50 hidden bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-scan-result">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-5 no-print">
+                <h3 class="font-bold text-slate-800 text-base">Pratinjau Kartu Presensi Guru</h3>
+                <button onclick="closeModalKartu()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- DESAIN KARTU ID VERTIKAL SIAP CETAK -->
+            <div id="printable-id-card-wrapper" class="mx-auto w-[290px] rounded-2xl overflow-hidden shadow-lg border-2 border-emerald-800 bg-white">
+                <!-- Kop Kartu -->
+                <div class="islamic-pattern text-white p-4 text-center border-b-4 border-amber-400">
+                    <div class="w-10 h-10 rounded-xl bg-amber-400 text-emerald-950 flex items-center justify-center mx-auto mb-1.5 shadow">
+                        <i class="fa-solid fa-mosque text-lg"></i>
+                    </div>
+                    <p class="text-[10px] font-bold tracking-widest text-amber-300 uppercase">Madrasah Ibtidaiyah</p>
+                    <h4 class="text-sm font-extrabold tracking-tight leading-snug">MI ABU BAKAR ASH-SHIDDIQ</h4>
+                    <div class="mt-2 inline-block px-3 py-0.5 bg-white/15 rounded-full text-[10px] font-bold tracking-wider uppercase text-white">
+                        Kartu Presensi Guru
+                    </div>
+                </div>
+
+                <!-- Badan Kartu & QR Code -->
+                <div class="p-5 text-center bg-gradient-to-b from-white to-emerald-50/40">
+                    <div class="bg-white p-3 rounded-2xl border-2 border-emerald-700/20 shadow-inner inline-block mb-3">
+                        <div id="modal-qr-container" class="flex items-center justify-center"></div>
+                    </div>
+
+                    <h5 id="card-nama-guru" class="font-extrabold text-slate-900 text-base leading-snug px-1">
+                        Nama Guru
+                    </h5>
+                    <p id="card-jabatan-guru" class="text-xs font-semibold text-emerald-700 mt-0.5">
+                        Jabatan / Mapel
+                    </p>
+                    
+                    <div class="mt-3 pt-2.5 border-t border-slate-200/80">
+                        <span class="text-[10px] uppercase tracking-wider text-slate-400 block">NIP / ID Pegawai</span>
+                        <span id="card-nip-guru" class="text-xs font-extrabold text-slate-800 tracking-wider font-mono">
+                            GR-0000
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Footer Kartu -->
+                <div class="bg-emerald-900 text-amber-300 text-[10px] font-semibold text-center py-2 px-3">
+                    Tempelkan QR Code ke Pemindai Saat Hadir & Pulang
+                </div>
+            </div>
+
+            <!-- Tombol Cetak & Unduh PNG -->
+            <div class="grid grid-cols-2 gap-3 mt-6 no-print">
+                <button onclick="downloadQRPng()"
+                    class="py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-emerald-950 font-bold text-xs sm:text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-image"></i>
+                    <span>Unduh QR (PNG)</span>
+                </button>
+                <button onclick="window.print()"
+                    class="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-print"></i>
+                    <span>Cetak Kartu</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MODAL KONFIRMASI KUSTOM (PENGGANTI ALERT/CONFIRM BAWAAN)     -->
+    <!-- ============================================================ -->
+    <div id="custom-modal" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-200 animate-scan-result">
+            <div class="flex items-center gap-3 mb-3">
+                <div id="custom-modal-icon" class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                </div>
+                <h4 id="custom-modal-title" class="font-bold text-slate-800 text-base">Konfirmasi</h4>
+            </div>
+            <p id="custom-modal-message" class="text-sm text-slate-600 leading-relaxed mb-5">
+                Apakah Anda yakin?
+            </p>
+            <div id="custom-modal-actions" class="flex justify-end gap-2">
+                <!-- Tombol diisi dinamis -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SCRIPT LOGIKA APLIKASI ==================== -->
+    <script>
+        // ==========================================
+        // 1. STATE & DATA DEMO AWAL
+        // ==========================================
+        const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwPe0HDdMnTkkwKUwZtHQslhgNlMddc0IqV4IwXKBoeewNnP7ZvD_7zKezTor19zjvN/exec';
+        const STORAGE_KEY_GURU = 'mi_abas_data_guru_v1';
+        const STORAGE_KEY_ABSEN = 'mi_abas_data_absen_v1';
+        const STORAGE_KEY_BATAS = 'mi_abas_batas_masuk_v1';
+        const STORAGE_KEY_WEBAPP_URL = 'mi_abas_webapp_url_v1';
+        const STORAGE_KEY_PENDING_QUEUE = 'mi_abas_pending_queue_v1';
+
+        const DEFAULT_GURU = [
+            { nip: 'GR-202601', nama: 'Ust. H. Muhammad Ridwan, M.Pd.I', jabatan: 'Kepala Madrasah' },
+            { nip: 'GR-202602', nama: 'Ustdz. Siti Aminah, S.Pd.I', jabatan: 'Wali Kelas 1A & Guru Akidah Akhlak' },
+            { nip: 'GR-202603', nama: 'Ust. Ahmad Fauzan, S.Pd', jabatan: 'Wali Kelas 4B & Guru Matematika' },
+            { nip: 'GR-202604', nama: 'Ustdz. Nurul Hidayah, S.Ag', jabatan: 'Guru Al-Qur\'an Hadits & Bahasa Arab' },
+            { nip: 'GR-202605', nama: 'Bpk. Hendra Kurniawan, S.Kom', jabatan: 'Kepala Tata Usaha & Operator Madrasah' }
+        ];
+
+        let dataGuru = [];
+        let dataAbsensi = [];
+        let pendingQueue = [];
+        let webAppUrl = DEFAULT_WEBAPP_URL;
+        let isSyncing = false;
+        let modePresensi = 'MASUK'; // 'MASUK' atau 'PULANG'
+        let html5QrCode = null;
+        let isScanning = false;
+        let lastScannedCode = '';
+        let lastScannedTime = 0;
+        let currentModalGuru = null;
+
+        // ==========================================
+        // 2. INISIALISASI SAAT HALAMAN DIMUAT
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('footer-year').textContent = new Date().getFullYear();
+            
+            // Muat data dari localStorage atau gunakan data demo
+            loadFromStorage();
+
+            // Set default filter tanggal hari ini (format YYYY-MM-DD waktu lokal)
+            const todayStr = getTodayDateString();
+            document.getElementById('filter-tanggal').value = todayStr;
+
+            // Jalankan jam real-time WIB
+            updateLiveClock();
+            setInterval(updateLiveClock, 1000);
+
+            // Render seluruh komponen antarmuka
+            refreshAllUI();
+
+            // Sinkronisasi awal dari Google Sheets jika URL tersedia
+            if (webAppUrl) {
+                syncFromGoogleSheets(false);
+            } else {
+                setSheetsStatus('offline', 'Offline & Mode Lokal');
+            }
+
+            // Listener status jaringan browser
+            window.addEventListener('online', () => {
+                if (webAppUrl) {
+                    flushPendingQueue().then(() => syncFromGoogleSheets(false));
+                }
+            });
+            window.addEventListener('offline', () => {
+                setSheetsStatus('offline', 'Offline & Mode Lokal');
+            });
+
+            // Simpan perubahan jam batas masuk
+            document.getElementById('batas-jam-masuk').addEventListener('change', (e) => {
+                localStorage.setItem(STORAGE_KEY_BATAS, e.target.value);
+            });
+        });
+
+        function loadFromStorage() {
+            const savedGuru = localStorage.getItem(STORAGE_KEY_GURU);
+            const savedAbsen = localStorage.getItem(STORAGE_KEY_ABSEN);
+            const savedBatas = localStorage.getItem(STORAGE_KEY_BATAS);
+            const savedUrl = localStorage.getItem(STORAGE_KEY_WEBAPP_URL);
+            const savedQueue = localStorage.getItem(STORAGE_KEY_PENDING_QUEUE);
+
+            if (savedGuru) {
+                dataGuru = JSON.parse(savedGuru);
+            } else {
+                dataGuru = [...DEFAULT_GURU];
+                saveGuruToStorage();
+            }
+
+            if (savedAbsen) {
+                dataAbsensi = JSON.parse(savedAbsen);
+            } else {
+                dataAbsensi = [];
+            }
+
+            if (savedBatas) {
+                document.getElementById('batas-jam-masuk').value = savedBatas;
+            }
+
+            webAppUrl = (savedUrl && savedUrl.trim()) ? savedUrl.trim() : DEFAULT_WEBAPP_URL;
+            document.getElementById('input-webapp-url').value = webAppUrl;
+
+            if (savedQueue) {
+                try {
+                    pendingQueue = JSON.parse(savedQueue) || [];
+                } catch (e) {
+                    pendingQueue = [];
+                }
+            } else {
+                pendingQueue = [];
+            }
+        }
+
+        function saveGuruToStorage() {
+            localStorage.setItem(STORAGE_KEY_GURU, JSON.stringify(dataGuru));
+        }
+
+        function saveAbsenToStorage() {
+            localStorage.setItem(STORAGE_KEY_ABSEN, JSON.stringify(dataAbsensi));
+        }
+
+        function savePendingQueueToStorage() {
+            localStorage.setItem(STORAGE_KEY_PENDING_QUEUE, JSON.stringify(pendingQueue));
+            updatePendingQueueBadge();
+        }
+
+        function updatePendingQueueBadge() {
+            const badge = document.getElementById('pending-queue-badge');
+            if (!badge) return;
+            if (pendingQueue.length > 0) {
+                badge.textContent = `${pendingQueue.length} antrean`;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function setSheetsStatus(state, labelText) {
+            const dot = document.getElementById('sheets-status-dot');
+            const textEl = document.getElementById('sheets-status-text');
+            if (!dot || !textEl) return;
+
+            textEl.textContent = labelText;
+            if (state === 'connected') {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-xs';
+            } else if (state === 'syncing') {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-300 animate-ping';
+            } else {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
+            }
+        }
+
+        function saveWebAppUrl() {
+            const inputVal = (document.getElementById('input-webapp-url').value || '').trim();
+            if (!inputVal) {
+                showAlertModal('URL Kosong', 'Masukkan URL Web App Google Apps Script yang berakhiran /exec.');
+                return;
+            }
+            webAppUrl = inputVal;
+            localStorage.setItem(STORAGE_KEY_WEBAPP_URL, webAppUrl);
+            syncFromGoogleSheets(true);
+        }
+
+        function enqueueSheetPayload(payload) {
+            pendingQueue.push({
+                id: 'Q-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+                payload,
+                createdAt: Date.now()
+            });
+            savePendingQueueToStorage();
+        }
+
+        // Menyusun URL GET Google Apps Script secara aman dengan parameter api=1 dan anti-cache
+        function buildGoogleSheetsGetUrl(baseUrl) {
+            const trimmed = String(baseUrl || '').trim();
+            if (!trimmed) return '';
+            try {
+                const parsed = new URL(trimmed);
+                parsed.searchParams.set('api', '1');
+                parsed.searchParams.set('_t', String(Date.now()));
+                return parsed.toString();
+            } catch (e) {
+                // Fallback aman jika format URL relatif atau tidak standar
+                const hasQuery = trimmed.includes('?');
+                const cleanBase = trimmed.replace(/([?&])(api=1|_t=[^&]*)(&|$)/g, (match, prefix, _, suffix) => {
+                    return suffix ? prefix : '';
+                }).replace(/[?&]$/, '');
+                const sep = cleanBase.includes('?') ? '&' : '?';
+                return `${cleanBase}${sep}api=1&_t=${Date.now()}`;
+            }
+        }
+
+        async function postToGoogleSheets(payload, allowQueue = true) {
+            if (!webAppUrl) {
+                if (allowQueue) enqueueSheetPayload(payload);
+                return { ok: false, queued: allowQueue };
+            }
+
+            if (!navigator.onLine) {
+                if (allowQueue) enqueueSheetPayload(payload);
+                setSheetsStatus('offline', 'Offline & Mode Lokal');
+                return { ok: false, queued: allowQueue };
+            }
+
+            setSheetsStatus('syncing', 'Menyinkronkan...');
+            try {
+                // Menggunakan mode no-cors agar kompatibel dengan redirect Google Apps Script Web App
+                await fetch(webAppUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                setSheetsStatus('connected', 'Terhubung');
+                return { ok: true, queued: false };
+            } catch (err) {
+                console.warn('Gagal mengirim ke Google Sheets, masuk antrean:', err);
+                if (allowQueue) enqueueSheetPayload(payload);
+                setSheetsStatus('offline', 'Offline & Mode Lokal');
+                return { ok: false, queued: allowQueue };
+            }
+        }
+
+        async function flushPendingQueue() {
+            if (!webAppUrl || !navigator.onLine || pendingQueue.length === 0) {
+                updatePendingQueueBadge();
+                return;
+            }
+
+            const remaining = [];
+            for (const item of pendingQueue) {
+                try {
+                    await fetch(webAppUrl, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify(item.payload)
+                    });
+                } catch (err) {
+                    remaining.push(item);
+                }
+            }
+            pendingQueue = remaining;
+            savePendingQueueToStorage();
+        }
+
+        async function syncFromGoogleSheets(showNotification = false) {
+            if (isSyncing) return;
+            if (!webAppUrl) {
+                setSheetsStatus('offline', 'Offline & Mode Lokal');
+                if (showNotification) {
+                    showAlertModal('URL Belum Diatur', 'Silakan isi URL Google Apps Script Web App di tab Rekap & Laporan.');
+                }
+                return;
+            }
+
+            isSyncing = true;
+            const icon = document.getElementById('icon-sync-sheets');
+            if (icon) icon.classList.add('fa-spin');
+            setSheetsStatus('syncing', 'Menyinkronkan...');
+
+            try {
+                // Kirim antrean tertunda terlebih dahulu jika ada
+                if (navigator.onLine && pendingQueue.length > 0) {
+                    await flushPendingQueue();
+                }
+
+                const fetchUrl = buildGoogleSheetsGetUrl(webAppUrl);
+                const response = await fetch(fetchUrl, {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (result && result.status === 'success') {
+                    // Sinkronisasi daftar guru dari sheet Data_Guru
+                    if (Array.isArray(result.guru) && result.guru.length > 0) {
+                        const sheetGuruList = result.guru
+                            .filter(g => g.id && g.nama)
+                            .map(g => ({
+                                nip: String(g.id).trim(),
+                                nama: String(g.nama).trim(),
+                                jabatan: String(g.jabatan || 'Guru / Staf').trim()
+                            }));
+
+                        // Gabungkan guru dari Sheets dengan data lokal yang belum terkirim
+                        const mapGuru = new Map();
+                        sheetGuruList.forEach(g => mapGuru.set(g.nip.toLowerCase(), g));
+                        dataGuru.forEach(g => {
+                            if (!mapGuru.has(g.nip.toLowerCase())) {
+                                mapGuru.set(g.nip.toLowerCase(), g);
+                            }
+                        });
+                        dataGuru = Array.from(mapGuru.values());
+                        saveGuruToStorage();
+                    }
+
+                    // Sinkronisasi log absensi dari sheet Log_Absensi
+                    if (Array.isArray(result.logs)) {
+                        const mergedLogs = mergeSheetLogsWithLocal(result.logs, dataAbsensi);
+                        dataAbsensi = mergedLogs;
+                        saveAbsenToStorage();
+                    }
+
+                    setSheetsStatus('connected', 'Terhubung');
+                    const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':');
+                    const syncInfo = document.getElementById('last-sync-info');
+                    if (syncInfo) {
+                        syncInfo.textContent = `Terakhir tersinkronisasi dengan Google Sheets pada pukul ${nowStr} WIB.`;
+                    }
+                    refreshAllUI();
+
+                    if (showNotification) {
+                        showAlertModal('Sinkronisasi Berhasil', 'Data guru dan riwayat absensi telah diperbarui dari Google Sheets.');
+                    }
+                } else {
+                    throw new Error(result?.message || 'Respons tidak valid');
+                }
+            } catch (err) {
+                console.warn('Sinkronisasi GET Google Sheets gagal:', err);
+                setSheetsStatus('offline', 'Offline & Mode Lokal');
+                if (showNotification) {
+                    showAlertModal('Mode Lokal Aktif', 'Tidak dapat mengambil data terbaru dari Google Sheets saat ini. Aplikasi tetap berjalan dengan cache lokal.');
+                }
+            } finally {
+                isSyncing = false;
+                if (icon) icon.classList.remove('fa-spin');
+                updatePendingQueueBadge();
+            }
+        }
+
+        function mergeSheetLogsWithLocal(sheetLogs, localLogs) {
+            // Kelompokkan log per (tanggal + id guru) agar baris tabel rekap menampilkan jam masuk & jam pulang rapi
+            const grouped = new Map();
+
+            const upsertEntry = (tanggal, nip, nama, jabatan, jenis, jam, status, ts) => {
+                const cleanTgl = normalizeDateStr(tanggal);
+                const cleanNip = String(nip || '').trim();
+                if (!cleanTgl || !cleanNip) return;
+
+                const key = `${cleanTgl}__${cleanNip.toLowerCase()}`;
+                if (!grouped.has(key)) {
+                    grouped.set(key, {
+                        id: `ABS-${cleanTgl}-${cleanNip}`,
+                        tanggal: cleanTgl,
+                        nip: cleanNip,
+                        nama: nama || cleanNip,
+                        jabatan: jabatan || '-',
+                        jamMasuk: '-',
+                        statusMasuk: '-',
+                        jamPulang: '-',
+                        updatedAt: ts || Date.now()
+                    });
+                }
+
+                const entry = grouped.get(key);
+                if (nama) entry.nama = nama;
+                if (jabatan) entry.jabatan = jabatan;
+
+                const jenisUpper = String(jenis || '').toUpperCase();
+                const jamClean = String(jam || '').trim().slice(0, 5);
+
+                if (jenisUpper === 'PULANG') {
+                    if (jamClean && jamClean !== '-') entry.jamPulang = jamClean;
+                } else {
+                    if (jamClean && jamClean !== '-') entry.jamMasuk = jamClean;
+                    if (status) entry.statusMasuk = status;
+                }
+                if (ts && ts > entry.updatedAt) entry.updatedAt = ts;
+            };
+
+            // Masukkan data dari Google Sheets terlebih dahulu
+            sheetLogs.forEach(log => {
+                const parsedTs = log.timestamp ? Date.parse(log.timestamp) || Date.now() : Date.now();
+                upsertEntry(log.tanggal, log.id, log.nama, log.jabatan, log.jenis, log.jam, log.status, parsedTs);
+            });
+
+            // Gabungkan catatan lokal yang mungkin belum ada di hasil GET terakhir
+            localLogs.forEach(rec => {
+                const key = `${normalizeDateStr(rec.tanggal)}__${String(rec.nip || '').toLowerCase()}`;
+                if (!grouped.has(key)) {
+                    grouped.set(key, { ...rec, tanggal: normalizeDateStr(rec.tanggal) });
+                } else {
+                    const target = grouped.get(key);
+                    if ((!target.jamMasuk || target.jamMasuk === '-') && rec.jamMasuk && rec.jamMasuk !== '-') {
+                        target.jamMasuk = rec.jamMasuk;
+                        target.statusMasuk = rec.statusMasuk;
+                    }
+                    if ((!target.jamPulang || target.jamPulang === '-') && rec.jamPulang && rec.jamPulang !== '-') {
+                        target.jamPulang = rec.jamPulang;
+                    }
+                }
+            });
+
+            return Array.from(grouped.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        }
+
+        function normalizeDateStr(val) {
+            if (!val) return getTodayDateString();
+            const s = String(val).trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+            const d = new Date(s);
+            if (!isNaN(d.getTime())) {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+            }
+            return s.slice(0, 10);
+        }
+
+        function refreshAllUI() {
+            document.getElementById('badge-total-guru').textContent = dataGuru.length;
+            updatePendingQueueBadge();
+            updateSimulasiDropdown();
+            renderTabelGuru();
+            renderRecentScans();
+            renderTabelRekap();
+        }
+
+        // ==========================================
+        // 3. UTILITAS WAKTU & AUDIO BEEP
+        // ==========================================
+        function getTodayDateString() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function getCurrentTimeHHMM() {
+            const now = new Date();
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            return `${hh}:${mm}`;
+        }
+
+        function updateLiveClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).replace(/\./g, ':');
+
+            const dateStr = now.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+            document.getElementById('live-clock').textContent = `${timeStr} WIB`;
+            document.getElementById('live-date').textContent = dateStr;
+        }
+
+        // Efek suara Beep menggunakan Web Audio API (tanpa file eksternal)
+        function playBeepSound(type = 'success') {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === 'success') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime); // Nada A5 jernih
+                    osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.1); // Naik ke D6
+                    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.25);
+                } else if (type === 'warning') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(440, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.3);
+                } else {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.35);
+                }
+            } catch (e) {
+                console.warn('Audio tidak didukung pada browser ini:', e);
+            }
+        }
+
+        // ==========================================
+        // 4. NAVIGASI TAB & MODE PRESENSI
+        // ==========================================
+        function switchTab(tabName) {
+            // Sembunyikan semua section
+            ['scanner', 'guru', 'rekap'].forEach(id => {
+                document.getElementById(`view-${id}`).classList.add('hidden');
+                const btn = document.getElementById(`tab-btn-${id}`);
+                btn.className = 'tab-btn flex items-center gap-2.5 px-4 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all whitespace-nowrap text-slate-600 hover:bg-emerald-50 hover:text-emerald-800';
+            });
+
+            // Tampilkan tab terpilih
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+            activeBtn.className = 'tab-btn flex items-center gap-2.5 px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap bg-emerald-700 text-white shadow-sm';
+
+            if (tabName === 'rekap') {
+                renderTabelRekap();
+            }
+        }
+
+        function setModePresensi(mode) {
+            modePresensi = mode;
+            const btnMasuk = document.getElementById('btn-mode-masuk');
+            const btnPulang = document.getElementById('btn-mode-pulang');
+            const badge = document.getElementById('feedback-mode-badge');
+
+            if (mode === 'MASUK') {
+                btnMasuk.className = 'px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all bg-emerald-700 text-white shadow-sm';
+                btnPulang.className = 'px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all text-slate-600 hover:text-slate-900';
+                badge.className = 'px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800';
+                badge.textContent = 'Mode: Absen Masuk';
+            } else {
+                btnPulang.className = 'px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all bg-sky-700 text-white shadow-sm';
+                btnMasuk.className = 'px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all text-slate-600 hover:text-slate-900';
+                badge.className = 'px-2.5 py-0.5 text-xs font-bold rounded-full bg-sky-100 text-sky-800';
+                badge.textContent = 'Mode: Absen Pulang';
+            }
+        }
+
+        // ==========================================
+        // 5. KAMERA SCANNER (HTML5-QRCODE)
+        // ==========================================
+        async function startScanner() {
+            if (isScanning) return;
+
+            const statusText = document.getElementById('camera-status-text');
+            statusText.textContent = 'Meminta izin akses kamera...';
+
+            try {
+                const devices = await Html5Qrcode.getCameras();
+                if (!devices || devices.length === 0) {
+                    statusText.textContent = 'Kamera tidak ditemukan pada perangkat.';
+                    showAlertModal('Kamera Tidak Tersedia', 'Perangkat tidak mendeteksi kamera atau izin kamera ditolak. Silakan gunakan fitur Presensi Manual / Simulasi di bawah.');
+                    return;
+                }
+
+                // Isi dropdown pilihan kamera
+                const cameraSelect = document.getElementById('camera-select');
+                cameraSelect.innerHTML = '';
+                devices.forEach((dev, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = dev.id;
+                    opt.textContent = dev.label || `Kamera ${idx + 1}`;
+                    cameraSelect.appendChild(opt);
+                });
+
+                // Prioritaskan kamera belakang jika ada (untuk HP)
+                const backCam = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('belakang') || d.label.toLowerCase().includes('environment'));
+                const selectedCamId = backCam ? backCam.id : devices[0].id;
+                cameraSelect.value = selectedCamId;
+
+                if (devices.length > 1) {
+                    cameraSelect.classList.remove('hidden');
+                    cameraSelect.onchange = async () => {
+                        await stopScanner();
+                        startScannerWithId(cameraSelect.value);
+                    };
+                }
+
+                await startScannerWithId(selectedCamId);
+            } catch (err) {
+                console.error(err);
+                statusText.textContent = 'Gagal mengakses kamera.';
+                showAlertModal('Izin Kamera Diperlukan', 'Pastikan browser diizinkan mengakses kamera (HTTPS/localhost), atau gunakan input simulasi di bawah pemindai.');
+            }
+        }
+
+        async function startScannerWithId(cameraId) {
+            try {
+                document.getElementById('camera-placeholder').classList.add('hidden');
+                html5QrCode = new Html5Qrcode("reader");
+
+                await html5QrCode.start(
+                    cameraId,
+                    { fps: 10, qrbox: { width: 230, height: 230 } },
+                    (decodedText) => {
+                        const now = Date.now();
+                        // Jeda 3 detik untuk kode yang sama agar tidak spam
+                        if (decodedText === lastScannedCode && (now - lastScannedTime) < 3000) {
+                            return;
+                        }
+                        lastScannedCode = decodedText;
+                        lastScannedTime = now;
+                        prosesPresensi(decodedText.trim());
+                    },
+                    () => {} // Abaikan error frame kosong
+                );
+
+                isScanning = true;
+                document.getElementById('btn-start-cam').classList.add('hidden');
+                document.getElementById('btn-stop-cam').classList.remove('hidden');
+                document.getElementById('camera-status-text').textContent = 'Kamera aktif — Arahkan Kartu QR ke kotak pemindai';
+            } catch (err) {
+                console.error(err);
+                document.getElementById('camera-placeholder').classList.remove('hidden');
+                document.getElementById('camera-status-text').textContent = 'Gagal memulai aliran video kamera.';
+            }
+        }
+
+        async function stopScanner() {
+            if (html5QrCode && isScanning) {
+                try {
+                    await html5QrCode.stop();
+                    html5QrCode.clear();
+                } catch (e) {
+                    console.warn(e);
+                }
+            }
+            isScanning = false;
+            document.getElementById('btn-start-cam').classList.remove('hidden');
+            document.getElementById('btn-stop-cam').classList.add('hidden');
+            document.getElementById('camera-select').classList.add('hidden');
+            document.getElementById('camera-placeholder').classList.remove('hidden');
+            document.getElementById('camera-status-text').textContent = 'Kamera dihentikan';
+        }
+
+        // ==========================================
+        // 6. LOGIKA PENCATATAN PRESENSI (INTI)
+        // ==========================================
+        function handleManualScan() {
+            const input = document.getElementById('manual-nip-input');
+            const kode = input.value.trim();
+            if (!kode) {
+                showAlertModal('Input Kosong', 'Silakan pilih nama guru dari daftar atau ketik NIP/ID Guru terlebih dahulu.');
+                return;
+            }
+            prosesPresensi(kode);
+            input.value = '';
+            document.getElementById('simulasi-select-guru').value = '';
+        }
+
+        function prosesPresensi(kodeQR) {
+            // Cari guru berdasarkan NIP (case-insensitive)
+            const guru = dataGuru.find(g => g.nip.toLowerCase() === kodeQR.toLowerCase());
+
+            if (!guru) {
+                playBeepSound('error');
+                renderFeedbackCard({
+                    statusType: 'ERROR',
+                    title: 'QR Code Tidak Dikenali',
+                    message: `Kode "${escapeHTML(kodeQR)}" tidak terdaftar dalam database Guru MI Abu Bakar Ash-Shiddiq.`
+                });
+                return;
+            }
+
+            const today = getTodayDateString();
+            const jamSekarang = getCurrentTimeHHMM();
+            const batasMasuk = document.getElementById('batas-jam-masuk').value || '07:15';
+
+            // Cari catatan absensi guru ini pada hari ini
+            let recordHariIni = dataAbsensi.find(r => r.nip.toLowerCase() === guru.nip.toLowerCase() && r.tanggal === today);
+
+            if (modePresensi === 'MASUK') {
+                // Cek apakah sudah absen masuk hari ini
+                if (recordHariIni && recordHariIni.jamMasuk && recordHariIni.jamMasuk !== '-') {
+                    playBeepSound('warning');
+                    renderFeedbackCard({
+                        statusType: 'DUPLICATE',
+                        guru: guru,
+                        title: 'Sudah Absen Masuk Hari Ini',
+                        message: `Tercatat masuk pada pukul ${recordHariIni.jamMasuk} WIB (${recordHariIni.statusMasuk}).`,
+                        jam: recordHariIni.jamMasuk
+                    });
+                    return;
+                }
+
+                // Tentukan status Tepat Waktu atau Terlambat
+                const isTerlambat = jamSekarang > batasMasuk;
+                const statusMasuk = isTerlambat ? 'Terlambat' : 'Tepat Waktu';
+
+                if (!recordHariIni) {
+                    recordHariIni = {
+                        id: `ABS-${today}-${guru.nip}`,
+                        tanggal: today,
+                        nip: guru.nip,
+                        nama: guru.nama,
+                        jabatan: guru.jabatan,
+                        jamMasuk: jamSekarang,
+                        statusMasuk: statusMasuk,
+                        jamPulang: '-',
+                        updatedAt: Date.now()
+                    };
+                    dataAbsensi.unshift(recordHariIni);
+                } else {
+                    recordHariIni.jamMasuk = jamSekarang;
+                    recordHariIni.statusMasuk = statusMasuk;
+                    recordHariIni.updatedAt = Date.now();
+                }
+
+                saveAbsenToStorage();
+                playBeepSound('success');
+                renderFeedbackCard({
+                    statusType: isTerlambat ? 'LATE' : 'ON_TIME',
+                    guru: guru,
+                    title: isTerlambat ? 'Presensi Masuk (Terlambat)' : 'Presensi Masuk Berhasil',
+                    message: isTerlambat 
+                        ? `Melewati batas jam masuk (${batasMasuk} WIB).` 
+                        : `Hadir tepat waktu sebelum pukul ${batasMasuk} WIB.`,
+                    jam: jamSekarang,
+                    badgeText: statusMasuk
+                });
+
+                // Kirim log presensi masuk ke Google Sheets via POST
+                postToGoogleSheets({
+                    action: 'scan',
+                    id: guru.nip,
+                    nama: guru.nama,
+                    jabatan: guru.jabatan,
+                    jenis: 'MASUK',
+                    tanggal: today,
+                    jam: jamSekarang,
+                    status: statusMasuk
+                });
+
+            } else {
+                // MODE ABSEN PULANG
+                if (recordHariIni && recordHariIni.jamPulang && recordHariIni.jamPulang !== '-') {
+                    playBeepSound('warning');
+                    renderFeedbackCard({
+                        statusType: 'DUPLICATE',
+                        guru: guru,
+                        title: 'Sudah Absen Pulang Hari Ini',
+                        message: `Tercatat pulang pada pukul ${recordHariIni.jamPulang} WIB.`,
+                        jam: recordHariIni.jamPulang
+                    });
+                    return;
+                }
+
+                if (!recordHariIni) {
+                    // Jika langsung absen pulang tanpa scan masuk pagi
+                    recordHariIni = {
+                        id: `ABS-${today}-${guru.nip}`,
+                        tanggal: today,
+                        nip: guru.nip,
+                        nama: guru.nama,
+                        jabatan: guru.jabatan,
+                        jamMasuk: '-',
+                        statusMasuk: 'Tidak Scan Masuk',
+                        jamPulang: jamSekarang,
+                        updatedAt: Date.now()
+                    };
+                    dataAbsensi.unshift(recordHariIni);
+                } else {
+                    recordHariIni.jamPulang = jamSekarang;
+                    recordHariIni.updatedAt = Date.now();
+                }
+
+                saveAbsenToStorage();
+                playBeepSound('success');
+                renderFeedbackCard({
+                    statusType: 'PULANG',
+                    guru: guru,
+                    title: 'Presensi Pulang Berhasil',
+                    message: 'Jazakumullahu khairan atas dedikasi mengajar hari ini.',
+                    jam: jamSekarang,
+                    badgeText: 'Pulang'
+                });
+
+                // Kirim log presensi pulang ke Google Sheets via POST
+                postToGoogleSheets({
+                    action: 'scan',
+                    id: guru.nip,
+                    nama: guru.nama,
+                    jabatan: guru.jabatan,
+                    jenis: 'PULANG',
+                    tanggal: today,
+                    jam: jamSekarang,
+                    status: 'Sudah Pulang'
+                });
+            }
+
+            renderRecentScans();
+            renderTabelRekap();
+        }
+
+        function renderFeedbackCard(info) {
+            const box = document.getElementById('scan-result-box');
+
+            if (info.statusType === 'ERROR') {
+                box.className = 'rounded-2xl border-2 border-rose-300 bg-rose-50 p-5 text-left animate-scan-result';
+                box.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="w-11 h-11 rounded-xl bg-rose-600 text-white flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-circle-xmark text-xl"></i>
+                        </div>
+                        <div>
+                            <span class="inline-block px-2 py-0.5 text-[11px] font-bold rounded-md bg-rose-200 text-rose-900 mb-1">Gagal</span>
+                            <h4 class="font-extrabold text-rose-950 text-base">${info.title}</h4>
+                            <p class="text-xs text-rose-800 mt-1 leading-relaxed">${info.message}</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            let theme = {
+                border: 'border-emerald-400',
+                bg: 'bg-emerald-50/80',
+                iconBg: 'bg-emerald-700',
+                icon: 'fa-circle-check',
+                badgeBg: 'bg-emerald-700 text-white'
+            };
+
+            if (info.statusType === 'LATE') {
+                theme = {
+                    border: 'border-amber-400',
+                    bg: 'bg-amber-50/90',
+                    iconBg: 'bg-amber-500',
+                    icon: 'fa-clock',
+                    badgeBg: 'bg-amber-500 text-emerald-950'
+                };
+            } else if (info.statusType === 'PULANG') {
+                theme = {
+                    border: 'border-sky-400',
+                    bg: 'bg-sky-50/90',
+                    iconBg: 'bg-sky-600',
+                    icon: 'fa-house-circle-check',
+                    badgeBg: 'bg-sky-600 text-white'
+                };
+            } else if (info.statusType === 'DUPLICATE') {
+                theme = {
+                    border: 'border-amber-300',
+                    bg: 'bg-amber-50/60',
+                    iconBg: 'bg-amber-600',
+                    icon: 'fa-triangle-exclamation',
+                    badgeBg: 'bg-amber-200 text-amber-900'
+                };
+            }
+
+            box.className = `rounded-2xl border-2 ${theme.border} ${theme.bg} p-5 text-left animate-scan-result shadow-sm`;
+            box.innerHTML = `
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl ${theme.iconBg} text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <i class="fa-solid ${theme.icon} text-xl"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-slate-500">${info.title}</div>
+                            <h4 class="font-extrabold text-slate-900 text-base leading-snug mt-0.5">${escapeHTML(info.guru.nama)}</h4>
+                            <p class="text-xs font-semibold text-emerald-800">${escapeHTML(info.guru.jabatan)}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-200/70 flex items-center justify-between">
+                    <span class="text-xs font-medium text-slate-600">${info.message}</span>
+                    <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+                        <span class="text-sm font-extrabold text-slate-800 tabular-nums">${info.jam} WIB</span>
+                        ${info.badgeText ? `<span class="px-2.5 py-1 text-xs font-bold rounded-lg ${theme.badgeBg}">${info.badgeText}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderRecentScans() {
+            const container = document.getElementById('recent-scans-list');
+            const today = getTodayDateString();
+            
+            const todayRecords = dataAbsensi
+                .filter(r => r.tanggal === today)
+                .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+                .slice(0, 5);
+
+            if (todayRecords.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-6 text-slate-400 text-xs bg-slate-50 rounded-xl border border-slate-100">
+                        Belum ada aktivitas presensi hari ini.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = todayRecords.map(rec => {
+                const isPulang = rec.jamPulang && rec.jamPulang !== '-';
+                const jamTampil = isPulang ? rec.jamPulang : rec.jamMasuk;
+                
+                let badgeHTML = '';
+                if (isPulang) {
+                    badgeHTML = `<span class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-sky-100 text-sky-800">Pulang</span>`;
+                } else if (rec.statusMasuk === 'Terlambat') {
+                    badgeHTML = `<span class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-amber-100 text-amber-800">Terlambat</span>`;
+                } else {
+                    badgeHTML = `<span class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-emerald-100 text-emerald-800">Tepat Waktu</span>`;
+                }
+
+                return `
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/70 transition">
+                        <div class="min-w-0 pr-2">
+                            <p class="font-bold text-slate-800 text-xs sm:text-sm truncate">${escapeHTML(rec.nama)}</p>
+                            <p class="text-[11px] text-slate-500 truncate">${escapeHTML(rec.jabatan)}</p>
+                        </div>
+                        <div class="text-right flex-shrink-0">
+                            <div class="text-xs font-extrabold text-slate-800 tabular-nums">${jamTampil} WIB</div>
+                            <div class="mt-0.5">${badgeHTML}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==========================================
+        // 7. MANAJEMEN DATA GURU & GENERATOR QR CODE
+        // ==========================================
+        function updateSimulasiDropdown() {
+            const select = document.getElementById('simulasi-select-guru');
+            select.innerHTML = '<option value="">-- Pilih Guru Cepat --</option>';
+            dataGuru.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g.nip;
+                opt.textContent = `${g.nama} (${g.nip})`;
+                select.appendChild(opt);
+            });
+        }
+
+        function handleTambahGuru(e) {
+            e.preventDefault();
+            const nip = document.getElementById('input-nip').value.trim();
+            const nama = document.getElementById('input-nama').value.trim();
+            const jabatan = document.getElementById('input-jabatan').value.trim();
+
+            if (!nip || !nama || !jabatan) return;
+
+            // Cek duplikat NIP
+            const exists = dataGuru.some(g => g.nip.toLowerCase() === nip.toLowerCase());
+            if (exists) {
+                showAlertModal('NIP / ID Sudah Terdaftar', `NIP/ID "${nip}" sudah digunakan oleh guru lain. Gunakan kode unik yang berbeda.`);
+                return;
+            }
+
+            dataGuru.push({ nip, nama, jabatan });
+            saveGuruToStorage();
+            document.getElementById('form-tambah-guru').reset();
+            refreshAllUI();
+
+            // Sinkronkan guru baru ke Google Sheets via POST (action: 'add_guru')
+            postToGoogleSheets({
+                action: 'add_guru',
+                id: nip,
+                nama: nama,
+                jabatan: jabatan
+            });
+
+            showAlertModal('Berhasil Ditambahkan', `Data ${nama} telah disimpan dan disinkronkan ke Google Sheets.`);
+        }
+
+        function hapusGuru(nip) {
+            const guru = dataGuru.find(g => g.nip === nip);
+            if (!guru) return;
+
+            showConfirmModal(
+                'Hapus Data Guru?',
+                `Anda akan menghapus data "${guru.nama}" (${guru.nip}). Riwayat absensi sebelumnya tetap tersimpan di laporan.`,
+                () => {
+                    dataGuru = dataGuru.filter(g => g.nip !== nip);
+                    saveGuruToStorage();
+                    refreshAllUI();
+                }
+            );
+        }
+
+        function renderTabelGuru() {
+            const tbody = document.getElementById('tbody-guru');
+            const keyword = (document.getElementById('search-guru').value || '').toLowerCase();
+
+            const filtered = dataGuru.filter(g => 
+                g.nama.toLowerCase().includes(keyword) || 
+                g.nip.toLowerCase().includes(keyword) ||
+                g.jabatan.toLowerCase().includes(keyword)
+            );
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-8 text-center text-slate-400 text-sm">
+                            Data guru tidak ditemukan.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map((guru, index) => `
+                <tr class="hover:bg-slate-50/80 transition">
+                    <td class="py-3 px-3 w-20">
+                        <div id="qr-thumb-${index}" class="w-14 h-14 p-1 bg-white border border-slate-200 rounded-xl flex items-center justify-center shadow-xs"></div>
+                    </td>
+                    <td class="py-3 px-3">
+                        <div class="font-bold text-slate-800 text-sm">${escapeHTML(guru.nama)}</div>
+                        <span class="inline-block mt-0.5 px-2 py-0.5 text-[11px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md">
+                            ${escapeHTML(guru.nip)}
+                        </span>
+                    </td>
+                    <td class="py-3 px-3 text-xs sm:text-sm text-slate-600 font-medium">
+                        ${escapeHTML(guru.jabatan)}
+                    </td>
+                    <td class="py-3 px-3 text-right">
+                        <div class="inline-flex items-center gap-2">
+                            <button onclick="openModalKartu('${escapeAttr(guru.nip)}')"
+                                class="px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-id-card"></i>
+                                <span>Lihat & Cetak Kartu ID</span>
+                            </button>
+                            <button onclick="hapusGuru('${escapeAttr(guru.nip)}')" title="Hapus Guru"
+                                class="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Render QR Code kecil untuk setiap baris
+            filtered.forEach((guru, index) => {
+                const container = document.getElementById(`qr-thumb-${index}`);
+                if (container) {
+                    container.innerHTML = '';
+                    new QRCode(container, {
+                        text: guru.nip,
+                        width: 48,
+                        height: 48,
+                        colorDark: "#064e3b",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                }
+            });
+        }
+
+        // ==========================================
+        // 8. MODAL CETAK KARTU ID & UNDUH PNG
+        // ==========================================
+        function openModalKartu(nip) {
+            const guru = dataGuru.find(g => g.nip === nip);
+            if (!guru) return;
+
+            currentModalGuru = guru;
+            document.getElementById('card-nama-guru').textContent = guru.nama;
+            document.getElementById('card-jabatan-guru').textContent = guru.jabatan;
+            document.getElementById('card-nip-guru').textContent = guru.nip;
+
+            const qrContainer = document.getElementById('modal-qr-container');
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {
+                text: guru.nip,
+                width: 156,
+                height: 156,
+                colorDark: "#022c22",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            document.getElementById('modal-kartu-id').classList.remove('hidden');
+        }
+
+        function closeModalKartu() {
+            document.getElementById('modal-kartu-id').classList.add('hidden');
+            currentModalGuru = null;
+        }
+
+        function downloadQRPng() {
+            if (!currentModalGuru) return;
+            const qrContainer = document.getElementById('modal-qr-container');
+            const canvas = qrContainer.querySelector('canvas');
+            const img = qrContainer.querySelector('img');
+
+            let dataUrl = '';
+            if (canvas) {
+                dataUrl = canvas.toDataURL('image/png');
+            } else if (img) {
+                dataUrl = img.src;
+            }
+
+            if (dataUrl) {
+                const link = document.createElement('a');
+                link.download = `QR_${currentModalGuru.nip}_${currentModalGuru.nama.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        // ==========================================
+        // 9. REKAPITULASI, STATISTIK & EKSPOR CSV
+        // ==========================================
+        function updateStatistikHariIni() {
+            const today = getTodayDateString();
+            const recordsToday = dataAbsensi.filter(r => r.tanggal === today);
+
+            const totalGuru = dataGuru.length;
+            const tepatWaktu = recordsToday.filter(r => r.statusMasuk === 'Tepat Waktu').length;
+            const terlambat = recordsToday.filter(r => r.statusMasuk === 'Terlambat').length;
+            const sudahPulang = recordsToday.filter(r => r.jamPulang && r.jamPulang !== '-').length;
+            
+            // Hitung guru yang belum tercatat hadir hari ini
+            const hadirNips = new Set(recordsToday.map(r => r.nip));
+            const belumHadir = dataGuru.filter(g => !hadirNips.has(g.nip)).length;
+
+            document.getElementById('stat-total-guru').textContent = totalGuru;
+            document.getElementById('stat-tepat-waktu').textContent = tepatWaktu;
+            document.getElementById('stat-terlambat').textContent = terlambat;
+            document.getElementById('stat-pulang').textContent = sudahPulang;
+            document.getElementById('stat-belum-hadir').textContent = belumHadir;
+        }
+
+        function getFilteredRekap() {
+            const filterTanggal = document.getElementById('filter-tanggal').value;
+            const filterStatus = document.getElementById('filter-status').value;
+            const filterJenis = document.getElementById('filter-jenis') ? document.getElementById('filter-jenis').value : 'SEMUA';
+
+            return dataAbsensi.filter(rec => {
+                const matchTanggal = filterTanggal ? normalizeDateStr(rec.tanggal) === filterTanggal : true;
+                let matchStatus = true;
+
+                if (filterStatus === 'Tepat Waktu') {
+                    matchStatus = rec.statusMasuk === 'Tepat Waktu';
+                } else if (filterStatus === 'Terlambat') {
+                    matchStatus = rec.statusMasuk === 'Terlambat';
+                } else if (filterStatus === 'Sudah Pulang') {
+                    matchStatus = rec.jamPulang && rec.jamPulang !== '-';
+                }
+
+                let matchJenis = true;
+                if (filterJenis === 'MASUK') {
+                    matchJenis = rec.jamMasuk && rec.jamMasuk !== '-';
+                } else if (filterJenis === 'PULANG') {
+                    matchJenis = rec.jamPulang && rec.jamPulang !== '-';
+                }
+
+                return matchTanggal && matchStatus && matchJenis;
+            });
+        }
+
+        function renderTabelRekap() {
+            updateStatistikHariIni();
+            const tbody = document.getElementById('tbody-rekap');
+            const records = getFilteredRekap();
+
+            if (records.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="py-10 text-center text-slate-400 text-sm">
+                            <i class="fa-regular fa-folder-open text-2xl mb-2 block text-slate-300"></i>
+                            Belum ada data presensi pada tanggal/filter yang dipilih.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = records.map((rec, idx) => {
+                let statusBadge = `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600">${escapeHTML(rec.statusMasuk)}</span>`;
+                if (rec.statusMasuk === 'Tepat Waktu') {
+                    statusBadge = `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800">Tepat Waktu</span>`;
+                } else if (rec.statusMasuk === 'Terlambat') {
+                    statusBadge = `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-100 text-amber-800">Terlambat</span>`;
+                }
+
+                const pulangBadge = (rec.jamPulang && rec.jamPulang !== '-')
+                    ? `<span class="font-bold text-sky-700 tabular-nums">${rec.jamPulang} WIB</span>`
+                    : `<span class="text-slate-400">-</span>`;
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3 px-3 text-slate-500 font-medium">${idx + 1}</td>
+                        <td class="py-3 px-3 text-xs font-semibold text-slate-700 whitespace-nowrap">${rec.tanggal}</td>
+                        <td class="py-3 px-3 font-mono text-xs font-bold text-emerald-800">${escapeHTML(rec.nip)}</td>
+                        <td class="py-3 px-3 font-bold text-slate-800">${escapeHTML(rec.nama)}</td>
+                        <td class="py-3 px-3 text-xs text-slate-600">${escapeHTML(rec.jabatan)}</td>
+                        <td class="py-3 px-3 font-bold text-slate-800 tabular-nums">${rec.jamMasuk !== '-' ? rec.jamMasuk + ' WIB' : '-'}</td>
+                        <td class="py-3 px-3">${statusBadge}</td>
+                        <td class="py-3 px-3">${pulangBadge}</td>
+                        <td class="py-3 px-3 text-right">
+                            <button onclick="hapusCatatanAbsen('${rec.id}')" title="Hapus Catatan"
+                                class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function hapusCatatanAbsen(id) {
+            showConfirmModal(
+                'Hapus Catatan Presensi?',
+                'Catatan kehadiran ini akan dihapus permanen dari laporan.',
+                () => {
+                    dataAbsensi = dataAbsensi.filter(r => r.id !== id);
+                    saveAbsenToStorage();
+                    renderRecentScans();
+                    renderTabelRekap();
+                }
+            );
+        }
+
+        function exportToCSV() {
+            const records = getFilteredRekap();
+            if (records.length === 0) {
+                showAlertModal('Data Kosong', 'Tidak ada data presensi untuk diekspor pada filter tanggal saat ini.');
+                return;
+            }
+
+            // BOM UTF-8 agar karakter dan pemisah kolom terbaca rapi di Microsoft Excel
+            const BOM = "\uFEFF";
+            const headers = ['No', 'Tanggal', 'NIP/ID Guru', 'Nama Guru', 'Jabatan', 'Jam Masuk', 'Status Masuk', 'Jam Pulang'];
+            
+            const rows = records.map((r, i) => [
+                i + 1,
+                r.tanggal,
+                `"${r.nip}"`,
+                `"${r.nama.replace(/"/g, '""')}"`,
+                `"${r.jabatan.replace(/"/g, '""')}"`,
+                r.jamMasuk,
+                `"${r.statusMasuk}"`,
+                r.jamPulang
+            ]);
+
+            const csvContent = BOM + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
+            const tgl = document.getElementById('filter-tanggal').value || 'Semua_Tanggal';
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Rekap_Presensi_Guru_MI_Abu_Bakar_${tgl}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // ==========================================
+        // 10. BACKUP, RESTORE & RESET DEMO
+        // ==========================================
+        function exportBackupJSON() {
+            const backup = {
+                sekolah: 'MI Abu Bakar Ash-Shiddiq',
+                exportedAt: new Date().toISOString(),
+                dataGuru,
+                dataAbsensi
+            };
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Backup_Presensi_MI_ABAS_${getTodayDateString()}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function importBackupJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (Array.isArray(parsed.dataGuru) && Array.isArray(parsed.dataAbsensi)) {
+                        dataGuru = parsed.dataGuru;
+                        dataAbsensi = parsed.dataAbsensi;
+                        saveGuruToStorage();
+                        saveAbsenToStorage();
+                        refreshAllUI();
+                        showAlertModal('Pemulihan Berhasil', 'Data guru dan riwayat presensi berhasil dipulihkan dari file cadangan.');
+                    } else {
+                        showAlertModal('Format Tidak Valid', 'File JSON tidak sesuai dengan format cadangan sistem presensi ini.');
+                    }
+                } catch (err) {
+                    showAlertModal('Gagal Membaca File', 'Terjadi kesalahan saat membaca file JSON.');
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function confirmResetDemo() {
+            showConfirmModal(
+                'Reset ke Data Demo Awal?',
+                'Seluruh data presensi akan dikosongkan dan daftar guru akan dikembalikan ke 5 data contoh MI Abu Bakar Ash-Shiddiq.',
+                () => {
+                    dataGuru = [...DEFAULT_GURU];
+                    dataAbsensi = [];
+                    saveGuruToStorage();
+                    saveAbsenToStorage();
+                    refreshAllUI();
+                }
+            );
+        }
+
+        // ==========================================
+        // 11. MODAL KUSTOM & KEAMANAN HTML
+        // ==========================================
+        function showAlertModal(title, message) {
+            const modal = document.getElementById('custom-modal');
+            document.getElementById('custom-modal-title').textContent = title;
+            document.getElementById('custom-modal-message').textContent = message;
+            document.getElementById('custom-modal-icon').className = 'w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0';
+            document.getElementById('custom-modal-icon').innerHTML = '<i class="fa-solid fa-circle-info text-lg"></i>';
+
+            document.getElementById('custom-modal-actions').innerHTML = `
+                <button onclick="closeCustomModal()" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl transition">
+                    Mengerti
+                </button>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const modal = document.getElementById('custom-modal');
+            document.getElementById('custom-modal-title').textContent = title;
+            document.getElementById('custom-modal-message').textContent = message;
+            document.getElementById('custom-modal-icon').className = 'w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0';
+            document.getElementById('custom-modal-icon').innerHTML = '<i class="fa-solid fa-triangle-exclamation text-lg"></i>';
+
+            const actions = document.getElementById('custom-modal-actions');
+            actions.innerHTML = '';
+
+            const btnCancel = document.createElement('button');
+            btnCancel.className = 'px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition';
+            btnCancel.textContent = 'Batal';
+            btnCancel.onclick = closeCustomModal;
+
+            const btnOk = document.createElement('button');
+            btnOk.className = 'px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl transition';
+            btnOk.textContent = 'Ya, Lanjutkan';
+            btnOk.onclick = () => {
+                closeCustomModal();
+                onConfirm();
+            };
+
+            actions.appendChild(btnCancel);
+            actions.appendChild(btnOk);
+            modal.classList.remove('hidden');
+        }
+
+        function closeCustomModal() {
+            document.getElementById('custom-modal').classList.add('hidden');
+        }
+
+        function escapeHTML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function escapeAttr(str) {
+            return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
